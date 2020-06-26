@@ -9,121 +9,126 @@ import Data.FileEmbed
 import Control.Monad ( join )
 import Data.Text as T ( empty, pack )
 import Data.IntMap.Strict as IM ( keys, singleton )
-import Data.Vector as V ( empty, singleton, snoc, replicate, fromList, unsafeUpd
-                        , unsafeIndex,  unsafeTake, unsafeLast, length, foldM' )
+import Data.Vector as V ( empty, singleton, cons, snoc, replicate, fromList, unsafeUpd
+                       , unsafeIndex, unsafeHead, unsafeTail, unsafeTake, unsafeDrop
+                       , unsafeLast, length, null, uniq, filter, map, mapM_ )
 
 main :: IO ()
 main = mainWidgetWithCss css game
-  where css = $(embedFile "css/tictactoe/game.css")
+ where css = $(embedFile "css/tictactoe/game.css")
 
 game :: MonadWidget t m => m ()
 game = elClass "div" "game" $ do
-  rec
-    let  evJumpTo = head <$> evJumpTo'
-         dxsts = constDyn $ V.singleton (V.replicate 9 T.empty, "O")
-         ddynStateList = (fst <$>) <$> ddynStateListWinner
-         dynStateList = join ddynStateList
-         evGameBoard = attachPromptlyDyn ddynStateList evJumpTo
+ rec
+   let  dim = 3; dim2 = dim ^ 2
+        keysGrid = matrix dim $ V.fromList [1..dim2]
+        evJumpTo = head <$> evJumpTo'
+        dxsts = constDyn $ V.singleton (V.replicate dim2 T.empty, "O")
+        ddynStateList = (fst <$>) <$> ddynStateListWinner
+        dynStateList = join ddynStateList
+        evGameBoard = attachPromptlyDyn ddynStateList evJumpTo
 
-         uniqDynStateList = fromUniqDynamic . uniqDynamic $ dynStateList
-         dynLength = V.length <$> uniqDynStateList
-         evLength = updated dynLength
-         dynWinner = join $ (snd <$>) <$> ddynStateListWinner
+        uniqDynStateList = fromUniqDynamic . uniqDynamic $ dynStateList
+        dynLength = V.length <$> uniqDynStateList
+        evLength = updated dynLength
+        dynWinner = join $ (snd <$>) <$> ddynStateListWinner
 
-    ddynStatus <- foldDyn (status dynWinner) (constDyn "Next player: X") $ leftmost [evLength, evJumpTo]
-    ddynStateListWinner <- widgetHold (gameBoard (dxsts, 1)) $ gameBoard <$> evGameBoard
-    (_, evJumpTo') <- runEventWriterT $ gameInfo dynLength $ join ddynStatus
-  return ()
- where
+   ddynStatus <- foldDyn (status dynWinner) (constDyn "Next player: X") $ leftmost [evLength, evJumpTo]
+   ddynStateListWinner <- widgetHold (gameBoard dim keysGrid (dxsts, 1)) $ gameBoard dim keysGrid <$> evGameBoard
+   (_, evJumpTo') <- runEventWriterT $ gameInfo dynLength $ join ddynStatus
+ return ()
+where
 
-    gameInfo dynLength dynStatus =
-      elClass "div" "game-info" $ do
-        elClass "div" "status" $ dynText dynStatus
-        el "ol" $ do
-          (_, evJumpTo') <- runEventWriterT $ simpleList (flip take [1..] <$> dynLength) jumpTo
-          tellEvent evJumpTo'
+   gameInfo dynLength dynStatus =
+     elClass "div" "game-info" $ do
+       elClass "div" "status" $ dynText dynStatus
+       el "ol" $ do
+         (_, evJumpTo') <- runEventWriterT $ simpleList (flip take [1..] <$> dynLength) jumpTo
+         tellEvent evJumpTo'
 
-    status dynWinner i _ = ffor2 dynWinner (constDyn i) status'
+   status dynWinner i _ = ffor2 dynWinner (constDyn i) status'
 
-    status' winner i
-      | winner == "X" = "Winner: " <> "X"
-      | winner == "O" = "Winner: " <> "O"
-      | otherwise = if even i then "Next player: O" else "Next player: X"
+   status' winner i
+     | winner == "X" = "Winner: " <> "X"
+     | winner == "O" = "Winner: " <> "O"
+     | otherwise = if even i then "Next player: O" else "Next player: X"
 
-    jumpTo dynI = el "li" $ do
-      (e, _) <- elAttr' "button" ("type" =: "button") $ dynText $ showI <$> dynI
-      tellEvent $ tagPromptlyDyn ((:[]) <$> dynI) $ domEvent Click e
+   jumpTo dynI = el "li" $ do
+     (e, _) <- elAttr' "button" ("type" =: "button") $ dynText $ showI <$> dynI
+     tellEvent $ tagPromptlyDyn ((:[]) <$> dynI) $ domEvent Click e
 
-    showI i | i == 1    = "Go to game start"
-            | otherwise = "Go to move #" <> (pack . show $ (i - 1))
+   showI i | i == 1    = "Go to game start"
+           | otherwise = "Go to move #" <> (pack . show $ (i - 1))
 
-    gameBoard (dxsts, i) = elClass "div" "game-board" $ do
-      rec
-        let dxst = flip V.unsafeIndex (i - 1)  <$> dxsts
-            dxs = fst <$> dxst
-            ddynFold' = fst <$> ddynFold
-            dynStateList = join $ snd <$> ddynFold'
-            dynSquares = join $ fst <$> ddynFold'
-            dynTurn = snd . unsafeLast <$> dynStateList
-            dynWinner = calculateWinner <$> dynSquares
+   gameBoard dim keysGrid (dxsts, i) = elClass "div" "game-board" $ do
+     rec
+       let dxst = flip V.unsafeIndex (i - 1)  <$> dxsts
+           dxs = fst <$> dxst
+           ddynFold' = fst <$> ddynFold
+           dynStateList = join $ snd <$> ddynFold'
+           dynState = join $ fst <$> ddynFold'
+           dynTurn = snd . unsafeLast <$> dynStateList
+           dynWinner = checkWinner dim <$> dynState
 
-        ddynFold <- foldDyn fun ((dxs, dxsts), V.unsafeTake i) $ (head . IM.keys) <$> evMap
-        (_, evMap) <- runEventWriterT $ board (fanInt evMap) dynSquares dynTurn dynWinner
-      return $ zipDyn dynStateList dynWinner
+       ddynFold <- foldDyn fun ((dxs, dxsts), V.unsafeTake i) $ (head . IM.keys) <$> evMap
+       (_, evMap) <- runEventWriterT $ board (fanInt evMap) dynState dynTurn dynWinner keysGrid
+     return $ zipDyn dynStateList dynWinner
 
-    fun j ((dxs, dxsts), f) =
-      let dxsts' = f <$> dxsts
-          dynTurn = snd . V.unsafeLast <$> dxsts'
-          dynTurn' = invers <$> dynTurn
-          dxs' = ffor2 dynTurn' dxs $ flip V.unsafeUpd . (:[]) . (,) (j - 1)
-          dxst' = zipDyn dxs' dynTurn'
-      in ((dxs', ffor2 dxsts' dxst' V.snoc), id)
+   fun j ((dxs, dxsts), f) =
+     let dxsts' = f <$> dxsts
+         dynTurn = snd . V.unsafeLast <$> dxsts'
+         dynTurn' = invers <$> dynTurn
+         dxs' = ffor2 dynTurn' dxs $ flip V.unsafeUpd . (:[]) . (,) (j - 1)
+         dxst' = zipDyn dxs' dynTurn'
+     in ((dxs', ffor2 dxsts' dxst' V.snoc), id)
 
-    invers "X" = "O"
-    invers "O" = "X"
+   invers "X" = "O"
+   invers "O" = "X"
 
-    calculateWinner squares =
-      let lines = V.fromList [
-            V.fromList [0, 1, 2],
-            V.fromList [3, 4, 5],
-            V.fromList [6, 7, 8],
-            V.fromList [0, 3, 6],
-            V.fromList [1, 4, 7],
-            V.fromList [2, 5, 8],
-            V.fromList [0, 4, 8],
-            V.fromList [2, 4, 6]]
+   checkWinner n vs =
+    let lines = matrix n vs
+        columns = transpose lines
+        diagonal1 = diagonal lines
+        diagonal2 = diagonal' lines
+        elements = lines <> columns <> V.singleton diagonal1 <> V.singleton  diagonal2
+        vvs = V.filter (\vs -> V.length vs == 1 && V.unsafeHead vs /= T.empty) $ V.map V.uniq elements
+    in if vvs == V.empty then T.empty else V.unsafeHead . V.unsafeHead $ vvs
 
-          f squares _ line = do
-            let first  = V.unsafeIndex squares (V.unsafeIndex line 0)
-                second = V.unsafeIndex squares (V.unsafeIndex line 1)
-                third  = V.unsafeIndex squares (V.unsafeIndex line 2)
-            if first /= T.empty && first == second && first == third then Left first else Right T.empty
+   transpose vvs
+     | V.null $ V.unsafeHead vvs = V.empty
+     | otherwise = V.cons (V.map V.unsafeHead vvs) (transpose (V.map V.unsafeTail vvs))
 
-      in either id id $ V.foldM' (f squares) T.empty lines
+   diagonal vvs =
+     let go vvs i
+          | i == V.length vvs = V.empty
+          | otherwise = V.cons (V.unsafeIndex (V.unsafeIndex vvs i) i) (go vvs (i + 1))
+     in go vvs 0
 
-    board evSelector dynSquares dynTurn dynWinner =
-      elClass "div" "board" $ do
-        elClass "div" "board-row" $ do
-          square evSelector dynSquares dynTurn dynWinner 1
-          square evSelector dynSquares dynTurn dynWinner 2
-          square evSelector dynSquares dynTurn dynWinner 3
-        elClass "div" "board-row" $ do
-          square evSelector dynSquares dynTurn dynWinner 4
-          square evSelector dynSquares dynTurn dynWinner 5
-          square evSelector dynSquares dynTurn dynWinner 6
-        elClass "div" "board-row" $ do
-          square evSelector dynSquares dynTurn dynWinner 7
-          square evSelector dynSquares dynTurn dynWinner 8
-          square evSelector dynSquares dynTurn dynWinner 9
+   diagonal' vvs =
+     let go vvs n i
+          | i == n = V.empty
+          | otherwise = V.cons (V.unsafeIndex (V.unsafeIndex vvs i) (n - i - 1)) (go vvs n (i + 1))
+     in go vvs (V.length vvs) 0
 
-    square evSelector dynSquares dynTurn dynWinner key  = do
-      let dynPlayer = flip V.unsafeIndex (key - 1) <$> dynSquares
-          evTurn = tagPromptlyDyn dynTurn $ selectInt evSelector key
-      ddynSymbol <- foldDyn (<$) dynPlayer $ leftmost [evTurn, updated dynPlayer]
-      (e, _) <- elAttr' "button" ("type" =: "button" <> "class" =: "square") $ dynText $ join ddynSymbol
-      let  evClickSquare = IM.singleton key <$> domEvent Click e
-      tellEvent $ gate (current (filterCliks <$> zipDyn dynWinner dynPlayer)) evClickSquare
+   matrix n vs
+     | V.null vs = V.empty
+     | otherwise = V.cons (V.unsafeTake n vs) $ matrix n $ V.unsafeDrop n vs
 
-    filterCliks p
-      | p == (T.empty, T.empty) = True
-      | otherwise = False
+   board evSelector dynState dynTurn dynWinner keyss =
+     elClass "div" "board" $ do
+       el "div" $ V.mapM_ (boardRow evSelector dynState dynTurn dynWinner) keyss
+
+   boardRow evSelector dynState dynTurn dynWinner keys =
+     elClass "div" "board-row" $ V.mapM_ (square evSelector dynState dynTurn dynWinner) keys
+
+   square evSelector dynState dynTurn dynWinner key  = do
+     let dynPlayer = flip V.unsafeIndex (key - 1) <$> dynState
+         evTurn = tagPromptlyDyn dynTurn $ selectInt evSelector key
+     ddynSymbol <- foldDyn (<$) dynPlayer $ leftmost [evTurn, updated dynPlayer]
+     (e, _) <- elAttr' "button" ("type" =: "button" <> "class" =: "square") $ dynText $ join ddynSymbol
+     let  evClickSquare = IM.singleton key <$> domEvent Click e
+     tellEvent $ gate (current (filterCliks <$> zipDyn dynWinner dynPlayer)) evClickSquare
+
+   filterCliks p
+     | p == (T.empty, T.empty) = True
+     | otherwise = False
