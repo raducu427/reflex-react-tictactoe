@@ -46,8 +46,8 @@ game = elClass "div" "game" $ do
     status dynWinner i _ = ffor2 dynWinner (constDyn i) status'
 
     status' winner i
-      | winner == "X" = "Winner: " <> "X"
-      | winner == "O" = "Winner: " <> "O"
+      | winner == "X" = "Winner: X"
+      | winner == "O" = "Winner: O"
       | otherwise = if even i then "Next player: O" else "Next player: X"
 
     jumpTo dynI = el "li" $ do
