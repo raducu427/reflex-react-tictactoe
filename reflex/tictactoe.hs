@@ -64,7 +64,7 @@ game = elClass "div" "game" $ do
       return $ fst <$> ddynFold
 
     gameBoard dynSquares dynWinner = elClass "div" "game-board" $ do
-      let keyss = V.fromList [V.fromList [1..3], V.fromList [4..6], V.fromList [7..9]]
+      let keyss = V.fromList $ V.fromList <$> [[1..3], [4..6], [7..9]]
       rec
         (_, evNewMove) <- runEventWriterT $ board (fanInt evNewMove) dynSquares dynWinner keyss
       return evNewMove
