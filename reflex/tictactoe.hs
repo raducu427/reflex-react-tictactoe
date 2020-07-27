@@ -80,20 +80,21 @@ game = elClass "div" "game" $ do
     invers "O" = "X"
 
     calculateWinner squares =
-      let lines = V.fromList [
-            V.fromList [0, 1, 2],
-            V.fromList [3, 4, 5],
-            V.fromList [6, 7, 8],
-            V.fromList [0, 3, 6],
-            V.fromList [1, 4, 7],
-            V.fromList [2, 5, 8],
-            V.fromList [0, 4, 8],
-            V.fromList [2, 4, 6]]
+      let lines = V.fromList $ V.fromList <$> [
+            [0, 1, 2],
+            [3, 4, 5],
+            [6, 7, 8],
+            [0, 3, 6],
+            [1, 4, 7],
+            [2, 5, 8],
+            [0, 4, 8],
+            [2, 4, 6]]
 
+          g squares line = V.unsafeIndex squares . V.unsafeIndex line
           f squares _ line = do
-            let first  = V.unsafeIndex squares (V.unsafeIndex line 0)
-                second = V.unsafeIndex squares (V.unsafeIndex line 1)
-                third  = V.unsafeIndex squares (V.unsafeIndex line 2)
+            let first  = g squares line 0
+                second = g squares line 1
+                third  = g squares line 2
             if first /= T.empty && first == second && first == third then Left first else Right T.empty
 
       in either id id $ V.foldM' (f squares) T.empty lines
