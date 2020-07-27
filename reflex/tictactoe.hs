@@ -1,7 +1,7 @@
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE RecursiveDo          #-}
-{-# LANGUAGE TemplateHaskell      #-}
-{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecursiveDo       #-}
+{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE FlexibleContexts  #-}
 
 import Reflex.Dom
 import Data.FileEmbed
