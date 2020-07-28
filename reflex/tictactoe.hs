@@ -20,20 +20,20 @@ game = elClass "div" "game" $ do
     let  dxsts = constDyn $ V.singleton (V.replicate 9 T.empty, "O")
 
          ddynFold = join dddynFold
-         ddynStateList = snd <$> ddynFold
-         dynStateList = join ddynStateList
+         ddynState = snd <$> ddynFold
+         dynState = join ddynState
          dynSquares = join $ fst <$> ddynFold
          dynWinner = calculateWinner <$> dynSquares
-         evFoldState = attachPromptlyDyn ddynStateList evJumpTo
+         evFoldState = attachPromptlyDyn ddynState evJump
 
-         uniqDynStateList = fromUniqDynamic . uniqDynamic $ dynStateList
-         dynLength = V.length <$> uniqDynStateList
+         uniqDynState = fromUniqDynamic . uniqDynamic $ dynState
+         dynLength = V.length <$> uniqDynState
          evLength = updated dynLength
 
-    ddynStatus <- foldDyn (status dynWinner) (constDyn "Next player: X") $ leftmost [evLength, evJumpTo]
-    dddynFold <- widgetHold (foldState evNewMove (dxsts, 1)) $ foldState evNewMove <$> evFoldState
-    evNewMove <- gameBoard dynSquares dynWinner
-    evJumpTo <- gameInfo dynLength $ join ddynStatus
+    ddynStatus <- foldDyn (status dynWinner) (constDyn "Next player: X") $ leftmost [evLength, evJump]
+    dddynFold <- widgetHold (foldState evMove (dxsts, 1)) $ foldState evMove <$> evFoldState
+    evMove <- gameBoard dynSquares dynWinner
+    evJump <- gameInfo dynLength $ join ddynStatus
   return ()
  where
 
@@ -41,8 +41,8 @@ game = elClass "div" "game" $ do
       elClass "div" "game-info" $ do
         elClass "div" "status" $ dynText dynStatus
         el "ol" $ do
-          (_, evJumpTo) <- runEventWriterT $ simpleList (flip take [1..] <$> dynLength) jumpTo
-          return $ head <$> evJumpTo
+          (_, evJump) <- runEventWriterT $ simpleList (flip take [1..] <$> dynLength) jumpTo
+          return $ head <$> evJump
 
     jumpTo dynI = el "li" $ do
       (e, _) <- elAttr' "button" ("type" =: "button") $ dynText $ showI <$> dynI
@@ -58,16 +58,16 @@ game = elClass "div" "game" $ do
     showI i | i == 1    = "Go to game start"
             | otherwise = "Go to move #" <> (T.pack . show $ (i - 1))
 
-    foldState evNewMove (dxsts, i) = do
+    foldState evMove (dxsts, i) = do
       let dxst = flip V.unsafeIndex (i - 1) <$> dxsts
-      ddynFold <- foldDyn fun ((fst <$> dxst, dxsts), V.unsafeTake i) $ (head . IM.keys) <$> evNewMove
+      ddynFold <- foldDyn fun ((fst <$> dxst, dxsts), V.unsafeTake i) $ (head . IM.keys) <$> evMove
       return $ fst <$> ddynFold
 
     gameBoard dynSquares dynWinner = elClass "div" "game-board" $ do
       let keyss = V.fromList $ V.fromList <$> [[1..3], [4..6], [7..9]]
       rec
-        (_, evNewMove) <- runEventWriterT $ board (fanInt evNewMove) dynSquares dynWinner keyss
-      return evNewMove
+        (_, evMove) <- runEventWriterT $ board (fanInt evMove) dynSquares dynWinner keyss
+      return evMove
 
     fun j ((dxs, dxsts), f) =
       let dxsts' = f <$> dxsts
@@ -99,9 +99,7 @@ game = elClass "div" "game" $ do
 
       in either id id $ V.foldM' (f squares) T.empty lines
 
-    board = ((V.mapM_ .) . ) . boardRow
-
-    boardRow = (((elClass "div" "board-row" .) .) .) . ((V.mapM_ .) .) . square
+    board = ((V.mapM_ .) . ) . (((elClass "div" "board-row" .) .) .) . ((V.mapM_ .) .) . square
 
     square evSelector dynSquares dynWinner key  = do
       let dynPlayer = flip V.unsafeIndex (key - 1) <$> dynSquares
