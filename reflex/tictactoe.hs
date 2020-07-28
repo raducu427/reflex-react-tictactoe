@@ -18,16 +18,13 @@ game :: MonadWidget t m => m ()
 game = elClass "div" "game" $ do
   rec
     let  dxsts = constDyn $ V.singleton (V.replicate 9 T.empty, "O")
-
          ddynFold = join dddynFold
          ddynState = snd <$> ddynFold
          dynState = join ddynState
          dynSquares = join $ fst <$> ddynFold
          dynWinner = calculateWinner <$> dynSquares
          evFoldState = attachPromptlyDyn ddynState evJump
-
-         uniqDynState = fromUniqDynamic . uniqDynamic $ dynState
-         dynLength = V.length <$> uniqDynState
+         dynLength = V.length <$> (fromUniqDynamic . uniqDynamic $ dynState)
          evLength = updated dynLength
 
     ddynStatus <- foldDyn (status dynWinner) (constDyn "Next player: X") $ leftmost [evLength, evJump]
@@ -89,14 +86,12 @@ game = elClass "div" "game" $ do
             [2, 5, 8],
             [0, 4, 8],
             [2, 4, 6]]
-
           g squares line = V.unsafeIndex squares . V.unsafeIndex line
           f squares _ line = do
             let first  = g squares line 0
                 second = g squares line 1
                 third  = g squares line 2
             if first /= T.empty && first == second && first == third then Left first else Right T.empty
-
       in either id id $ V.foldM' (f squares) T.empty lines
 
     board = ((V.mapM_ .) . ) . (((elClass "div" "board-row" .) .) .) . ((V.mapM_ .) .) . square
