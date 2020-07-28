@@ -99,12 +99,9 @@ game = elClass "div" "game" $ do
 
       in either id id $ V.foldM' (f squares) T.empty lines
 
-    board evSelector dynSquares dynWinner keyss =
-      elClass "div" "board" $ do
-        el "div" $ V.mapM_ (boardRow evSelector dynSquares dynWinner) keyss
+    board = ((V.mapM_ .) . ) . boardRow
 
-    boardRow evSelector dynSquares dynWinner keys =
-      elClass "div" "board-row" $ V.mapM_ (square evSelector dynSquares dynWinner) keys
+    boardRow = (((elClass "div" "board-row" .) .) .) . ((V.mapM_ .) .) . square
 
     square evSelector dynSquares dynWinner key  = do
       let dynPlayer = flip V.unsafeIndex (key - 1) <$> dynSquares
