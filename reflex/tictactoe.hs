@@ -86,21 +86,21 @@ game = elClass "div" "game" $ do
             [2, 5, 8],
             [0, 4, 8],
             [2, 4, 6]]
-          g squares line = V.unsafeIndex squares . V.unsafeIndex line
+          g = flip (.) V.unsafeIndex . (.) . V.unsafeIndex
           f squares _ line = do
-            let first  = g squares line 0
-                second = g squares line 1
-                third  = g squares line 2
-            if first /= T.empty && first == second && first == third then Left first else Right T.empty
+            let fst = g squares line 0
+                snd = g squares line 1
+                trd = g squares line 2
+            if fst /= T.empty && fst == snd && fst == trd then Left fst else Right T.empty
       in either id id $ V.foldM' (f squares) T.empty lines
 
     board = ((V.mapM_ .) . ) . (((elClass "div" "board-row" .) .) .) . ((V.mapM_ .) .) . square
 
     square evSelector dynSquares dynWinner key  = do
-      let dynPlayer = flip V.unsafeIndex (key - 1) <$> dynSquares
-      (e, _) <- elAttr' "button" ("type" =: "button" <> "class" =: "square") $ dynText dynPlayer
+      let dynSymbol = flip V.unsafeIndex (key - 1) <$> dynSquares
+      (e, _) <- elAttr' "button" ("type" =: "button" <> "class" =: "square") $ dynText dynSymbol
       let  evClickSquare = IM.singleton key <$> domEvent Click e
-      tellEvent $ gate (current (filterCliks <$> zipDyn dynWinner dynPlayer)) evClickSquare
+      tellEvent $ gate (current (filterCliks <$> zipDyn dynWinner dynSymbol)) evClickSquare
 
     filterCliks p
       | p == (T.empty, T.empty) = True
