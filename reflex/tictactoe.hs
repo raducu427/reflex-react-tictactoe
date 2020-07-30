@@ -38,12 +38,12 @@ game = elClass "div" "game" $ do
       elClass "div" "game-info" $ do
         elClass "div" "status" $ dynText dynStatus
         el "ol" $ do
-          (_, evJump) <- runEventWriterT $ simpleList (flip take [1..] <$> dynLength) jumpTo
-          return $ head <$> evJump
+          dynEvs <- simpleList (flip take [1..] <$> dynLength) jumpTo
+          return $ switchDyn $ leftmost <$> dynEvs
 
     jumpTo dynI = el "li" $ do
       (e, _) <- elAttr' "button" ("type" =: "button") $ dynText $ showI <$> dynI
-      tellEvent $ tagPromptlyDyn ((:[]) <$> dynI) $ domEvent Click e
+      return $ tagPromptlyDyn dynI $ domEvent Click e
 
     status dynWinner i _ = ffor2 dynWinner (constDyn i) status'
 
